@@ -9,6 +9,13 @@ public class Watering : MonoBehaviour
     public float destroyDelay = 2f;
     public float waterNeeded;
     public float waterGiven;
+
+    [Header("Noise Settings")]
+    public float noiseRadius = 8f;
+    public float noiseInterval = 1f;
+
+    private float noiseTimer = 0f;
+
     public GameObject wateringUI;
     public Image wateringValueUI;
 
@@ -66,12 +73,20 @@ public class Watering : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (isWatering == true)
+       if (isWatering)
         {
-            Debug.Log("Watering...");
             wateringUI.SetActive(true);
+
             waterGiven += 10 * Time.deltaTime;
             fillWater();
+
+            noiseTimer += Time.deltaTime;
+
+            if (noiseTimer >= noiseInterval)
+            {
+                NoiseManager.MakeNoise(transform.position, noiseRadius);
+                noiseTimer = 0f;
+            }
         }
 
         if (waterGiven >= waterNeeded)
@@ -103,5 +118,13 @@ public class Watering : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         Destroy(gameObject);
+    }
+
+        void OnDrawGizmosSelected()
+    {
+        // Watering noise radius
+        Gizmos.color = Color.cyan;
+
+        Gizmos.DrawWireSphere(transform.position, noiseRadius);
     }
 }

@@ -25,15 +25,28 @@ public class EnemyBehavior : MonoBehaviour
     public float patrolSpeed = 3.5f;
     public float chaseSpeed = 5.5f;
 
+    [Header("Investigation")]
+    public float investigateSpeed = 4f;
+    public float investigateWaitTime = 3f;
+
+    private Vector2 noisePosition;
+    private float investigateTimer;
+
     [Header("Visuals")]
     public Renderer bodyRenderer;
     public Color patrolColor = Color.red;
     public Color chaseColor = Color.yellow;
+    public Color investigateColor = Color.blue;
 
     // ──────────────────────────────────────────────
     //  State Machine
     // ──────────────────────────────────────────────
-    public enum EnemyState { Patrol, Chase }
+    public enum EnemyState
+    {
+        Patrol,
+        Investigate,
+        Chase
+    }
     public EnemyState currentState { get; private set; } = EnemyState.Patrol;
 
     // ──────────────────────────────────────────────
@@ -59,16 +72,36 @@ public class EnemyBehavior : MonoBehaviour
         EnterState(EnemyState.Patrol);
     }
 
+        void OnEnable()
+    {
+        NoiseManager.OnNoiseMade += HearNoise;
+    }
+
+        void OnDisable()
+    {
+        NoiseManager.OnNoiseMade -= HearNoise;
+    }
+
     void Update()
     {
         switch (currentState)
         {
-            case EnemyState.Patrol: UpdatePatrol(); break;
-            case EnemyState.Chase: UpdateChase(); break;
+            case EnemyState.Patrol:
+                UpdatePatrol();
+                break;
+
+            case EnemyState.Investigate:
+                UpdateInvestigate();
+                break;
+
+            case EnemyState.Chase:
+                UpdateChase();
+                break;
         }
 
-        // Update facing direction from movement
+        // Update facing direction
         Vector2 vel = new Vector2(agent.velocity.x, agent.velocity.y);
+
         if (vel.magnitude > 0.01f)
             facingDir = vel.normalized;
     }
@@ -110,6 +143,30 @@ public class EnemyBehavior : MonoBehaviour
         }
     }
 
+    void UpdateInvestigate()
+    {
+        // Check if player is visible
+        if (player != null && CanSeePlayer())
+        {
+            EnterState(EnemyState.Chase);
+            return;
+        }
+
+        // Move towards noise location
+        agent.SetDestination(noisePosition);
+
+        // Check if enemy reached the noise location
+        if (!agent.pathPending && agent.remainingDistance <= 0.5f)
+        {
+            investigateTimer += Time.deltaTime;
+
+            if (investigateTimer >= investigateWaitTime)
+            {
+                EnterState(EnemyState.Patrol);
+            }
+        }
+    }
+    
     void EnterState(EnemyState newState)
     {
         currentState = newState;
@@ -119,6 +176,13 @@ public class EnemyBehavior : MonoBehaviour
             case EnemyState.Patrol:
                 agent.speed = patrolSpeed;
                 SetColor(patrolColor);
+                break;
+
+            case EnemyState.Investigate:
+                agent.speed = investigateSpeed;
+                investigateTimer = 0f;
+                SetColor(investigateColor);
+                agent.SetDestination(noisePosition);
                 break;
 
             case EnemyState.Chase:
@@ -154,6 +218,18 @@ public class EnemyBehavior : MonoBehaviour
 
         // No wall hit = player is visible
         return hit.collider == null;
+    }
+
+    void HearNoise(Vector2 position, float radius)
+    {
+        float distance = Vector2.Distance(transform.position, position);
+
+        if (distance <= radius && currentState != EnemyState.Chase)
+        {
+            noisePosition = position;
+
+            EnterState(EnemyState.Investigate);
+        }
     }
 
     // ──────────────────────────────────────────────
